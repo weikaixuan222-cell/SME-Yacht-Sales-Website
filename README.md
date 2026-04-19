@@ -72,6 +72,7 @@ chmod +x deploy.sh
 | `curl` 报 404 | 仓库为私有 (Private) | 使用上述 `cat << 'EOF'` 方案手动创建脚本。 |
 | `git clone` 失败/卡住 | GitHub 连接不稳定 | 脚本会先强制 Git 使用 HTTP/1.1，再自动尝试 `ghproxy` 镜像；若镜像也失败，会继续下载 GitHub 仓库归档包。 |
 | `GnuTLS recv error (-110)` | 服务器到 GitHub 的 TLS 连接中断 | 最新脚本会优先把 Git 切到 HTTP/1.1，并在 clone 失败后自动回退到仓库归档包下载。 |
+| `failed to resolve reference "docker.io/library/postgres:16-alpine"` | 服务器到 Docker Hub 的网络超时，常见于 IPv6 出口不通或 Docker Hub 受限 | 脚本会先尝试官方 `postgres:16-alpine`，失败后自动回退到 `docker.m.daocloud.io/library/postgres:16-alpine`，并把成功镜像写入 `.env`。 |
 | `Prisma version error` | Node.js 版本低于 20 | 脚本会自动识别 Ubuntu 代号并安装 Node.js 20；若镜像失败会自动回退到 NodeSource 官方源。 |
 | `apt update` 提示 `nodistro Release 404` | 旧版部署脚本写入了错误的 NodeSource 源 | 先执行 `sudo rm -f /etc/apt/sources.list.d/nodesource.list /etc/apt/keyrings/nodesource.gpg && sudo apt update`，再重新下载最新 `deploy.sh` 执行。 |
 | `next/font` 构建失败 | 无法连接 Google 字体 | 项目已默认移除 Geist 字体改用系统字体，解决了此问题。 |

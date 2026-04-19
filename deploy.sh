@@ -13,6 +13,8 @@ ARCHIVE_URL="https://codeload.github.com/weikaixuan222-cell/SME-Yacht-Sales-Webs
 APP_DIR="$HOME/SME-Yacht-Sales-Website"
 NODE_VERSION="20"
 PORT=3000
+DEFAULT_POSTGRES_IMAGE="postgres:16-alpine"
+MIRROR_POSTGRES_IMAGE="docker.m.daocloud.io/library/postgres:16-alpine"
 # ---------------------------------------------------------------------
 
 GREEN='\033[0;32m'
@@ -140,6 +142,51 @@ clone_repository() {
   return 1
 }
 
+upsert_env_value() {
+  local file_path="$1"
+  local env_key="$2"
+  local env_value="$3"
+
+  if [ ! -f "$file_path" ]; then
+    return 1
+  fi
+
+  if grep -q "^${env_key}=" "$file_path"; then
+    sed -i "s|^${env_key}=.*|${env_key}=\"${env_value}\"|" "$file_path"
+  else
+    printf '\n%s="%s"\n' "$env_key" "$env_value" >>"$file_path"
+  fi
+}
+
+ensure_env_file() {
+  if [ ! -f ".env" ] && [ -f ".env.example" ]; then
+    cp .env.example .env
+    warn "已根据 .env.example 创建 .env，请在部署完成后及时修改默认管理账号和密钥。"
+  fi
+}
+
+start_database() {
+  local postgres_image
+  local candidates=(
+    "${POSTGRES_IMAGE:-$DEFAULT_POSTGRES_IMAGE}"
+    "$MIRROR_POSTGRES_IMAGE"
+  )
+
+  for postgres_image in "${candidates[@]}"; do
+    log "尝试启动数据库镜像: ${postgres_image}"
+    if POSTGRES_IMAGE="$postgres_image" sudo docker compose up -d db; then
+      if [ -f ".env" ]; then
+        upsert_env_value ".env" "POSTGRES_IMAGE" "$postgres_image" || true
+      fi
+      return 0
+    fi
+
+    warn "数据库镜像启动失败: ${postgres_image}"
+  done
+
+  fail "数据库启动失败。已依次尝试 Docker Hub 和镜像源拉取 PostgreSQL 镜像。若仍失败，请检查服务器到 Docker 镜像站的网络连通性，或手动设置 POSTGRES_IMAGE 后重试。"
+}
+
 init_environment() {
   log "开始环境初始化..."
 
@@ -175,12 +222,13 @@ init_environment() {
   fi
 
   cd "$APP_DIR"
+  ensure_env_file
 
   log "安装项目依赖（使用 npmmirror）..."
   npm install --registry=https://registry.npmmirror.com
 
   log "启动数据库..."
-  sudo docker compose up -d db
+  start_database
 
   log "同步数据库结构..."
   npx prisma db push

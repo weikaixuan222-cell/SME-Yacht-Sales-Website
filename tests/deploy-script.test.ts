@@ -5,6 +5,8 @@ import { describe, expect, test } from "vitest";
 
 const deployScriptPath = path.join(process.cwd(), "deploy.sh");
 const deployScript = readFileSync(deployScriptPath, "utf8");
+const dockerComposePath = path.join(process.cwd(), "docker-compose.yml");
+const dockerCompose = readFileSync(dockerComposePath, "utf8");
 
 describe("deploy script", () => {
   test("uses the detected ubuntu codename instead of hardcoded nodistro", () => {
@@ -23,5 +25,14 @@ describe("deploy script", () => {
 
   test("forces git clone over HTTP/1.1 to reduce TLS termination issues", () => {
     expect(deployScript).toContain("http.version HTTP/1.1");
+  });
+
+  test("allows overriding the postgres image source for restricted network deployments", () => {
+    expect(dockerCompose).toContain('${POSTGRES_IMAGE:-postgres:16-alpine}');
+  });
+
+  test("retries database startup with mirrored postgres images when docker hub is unavailable", () => {
+    expect(deployScript).toContain("POSTGRES_IMAGE=");
+    expect(deployScript).toContain("docker.m.daocloud.io/library/postgres:16-alpine");
   });
 });
