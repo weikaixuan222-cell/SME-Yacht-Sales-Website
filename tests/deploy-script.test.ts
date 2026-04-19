@@ -15,4 +15,13 @@ describe("deploy script", () => {
   test("keeps an official NodeSource fallback when mirror setup fails", () => {
     expect(deployScript).toContain("deb.nodesource.com");
   });
+
+  test("falls back to downloading a repository archive when git clone endpoints fail", () => {
+    expect(deployScript).toContain("codeload.github.com");
+    expect(deployScript).toMatch(/tar\s+-xzf|unzip/);
+  });
+
+  test("forces git clone over HTTP/1.1 to reduce TLS termination issues", () => {
+    expect(deployScript).toContain("http.version HTTP/1.1");
+  });
 });
