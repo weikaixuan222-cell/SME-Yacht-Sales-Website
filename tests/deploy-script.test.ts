@@ -35,4 +35,8 @@ describe("deploy script", () => {
     expect(deployScript).toContain("POSTGRES_IMAGE=");
     expect(deployScript).toContain("docker.m.daocloud.io/library/postgres:16-alpine");
   });
+
+  test("passes the postgres image override through sudo when starting docker compose", () => {
+    expect(deployScript).toContain("sudo env POSTGRES_IMAGE=");
+  });
 });

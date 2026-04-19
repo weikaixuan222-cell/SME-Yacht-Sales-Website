@@ -174,7 +174,7 @@ start_database() {
 
   for postgres_image in "${candidates[@]}"; do
     log "尝试启动数据库镜像: ${postgres_image}"
-    if POSTGRES_IMAGE="$postgres_image" sudo docker compose up -d db; then
+    if sudo env POSTGRES_IMAGE="$postgres_image" docker compose up -d db; then
       if [ -f ".env" ]; then
         upsert_env_value ".env" "POSTGRES_IMAGE" "$postgres_image" || true
       fi
