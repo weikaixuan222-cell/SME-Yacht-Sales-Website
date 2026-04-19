@@ -39,4 +39,10 @@ describe("deploy script", () => {
   test("passes the postgres image override through sudo when starting docker compose", () => {
     expect(deployScript).toContain("sudo env POSTGRES_IMAGE=");
   });
+
+  test("loads DATABASE_URL from .env before running prisma commands during deployment", () => {
+    expect(deployScript).toContain('set -a');
+    expect(deployScript).toContain('. ./.env');
+    expect(deployScript).toContain('set +a');
+  });
 });

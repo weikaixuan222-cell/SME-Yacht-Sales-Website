@@ -165,6 +165,14 @@ ensure_env_file() {
   fi
 }
 
+load_env_file() {
+  if [ -f ".env" ]; then
+    set -a
+    . ./.env
+    set +a
+  fi
+}
+
 start_database() {
   local postgres_image
   local candidates=(
@@ -223,6 +231,7 @@ init_environment() {
 
   cd "$APP_DIR"
   ensure_env_file
+  load_env_file
 
   log "安装项目依赖（使用 npmmirror）..."
   npm install --registry=https://registry.npmmirror.com
@@ -251,6 +260,7 @@ init_environment() {
 update_deploy() {
   log "开始更新部署..."
   cd "$APP_DIR"
+  load_env_file
   git config --global http.version HTTP/1.1
   git pull || { warn "Git Pull 失败，尝试切换远程地址..."; git remote set-url origin "$MIRROR_REPO_URL"; git pull; }
   npm install --registry=https://registry.npmmirror.com
