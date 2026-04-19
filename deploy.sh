@@ -24,6 +24,63 @@ log()   { echo -e "${GREEN}[✓]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $1"; }
 fail()  { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 
+detect_ubuntu_codename() {
+  if [ -r /etc/os-release ]; then
+    # 优先使用系统标准字段，避免硬编码 nodistro 导致 apt 源 404。
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    if [ -n "${UBUNTU_CODENAME:-}" ]; then
+      printf '%s\n' "$UBUNTU_CODENAME"
+      return 0
+    fi
+    if [ -n "${VERSION_CODENAME:-}" ]; then
+      printf '%s\n' "$VERSION_CODENAME"
+      return 0
+    fi
+  fi
+
+  if command -v lsb_release &>/dev/null; then
+    lsb_release -cs
+    return 0
+  fi
+
+  return 1
+}
+
+reset_nodesource_repo() {
+  sudo rm -f /etc/apt/sources.list.d/nodesource.list
+  sudo rm -f /etc/apt/keyrings/nodesource.gpg
+}
+
+install_nodejs() {
+  local ubuntu_codename
+  ubuntu_codename="$(detect_ubuntu_codename)" || fail "无法识别当前 Ubuntu 发行版代号，不能自动配置 Node.js 源。"
+
+  log "检测到 Ubuntu 代号: ${ubuntu_codename}"
+  sudo mkdir -p /etc/apt/keyrings
+
+  log "尝试通过清华镜像安装 Node.js v${NODE_VERSION}..."
+  reset_nodesource_repo
+
+  if curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg; then
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://mirrors.tuna.tsinghua.edu.cn/nodesource/deb/node_${NODE_VERSION}.x ${ubuntu_codename} main" | sudo tee /etc/apt/sources.list.d/nodesource.list > /dev/null
+
+    if sudo apt update && sudo apt install -y nodejs; then
+      log "Node.js 安装完成: $(node -v)"
+      return 0
+    fi
+
+    warn "清华镜像安装 Node.js 失败，回退到 NodeSource 官方源..."
+  else
+    warn "NodeSource GPG key 获取失败，回退到 NodeSource 官方源..."
+  fi
+
+  reset_nodesource_repo
+  curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" | sudo -E bash -
+  sudo apt install -y nodejs
+  log "Node.js 安装完成: $(node -v)"
+}
+
 # 环境初始化
 init_environment() {
   log "开始环境初始化..."
@@ -34,6 +91,7 @@ init_environment() {
 
   # --- 1. 基础工具 ---
   log "安装基础工具..."
+  reset_nodesource_repo
   sudo apt update
   sudo apt install -y curl git wget ca-certificates gnupg build-essential unzip
 
@@ -41,13 +99,7 @@ init_environment() {
   if command -v node &>/dev/null && node -v | grep -qE "v(2[0-9]|22)"; then
     log "Node.js 已安装且版本符合要求: $(node -v)"
   else
-    log "安装 Node.js v${NODE_VERSION} (使用镜像源)..."
-    sudo mkdir -p /etc/apt/keyrings
-    # 尝试清华镜像安装 NodeSource
-    curl -fsSL https://mirrors.tuna.tsinghua.edu.cn/nodesource/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg || true
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://mirrors.tuna.tsinghua.edu.cn/nodesource/deb/node_${NODE_VERSION}.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list
-    sudo apt update
-    sudo apt install -y nodejs
+    install_nodejs
   fi
 
   # --- 3. 安装 Docker ---
