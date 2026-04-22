@@ -106,3 +106,40 @@ npm run smoke
 npm run db:up
 npm run prisma:seed
 ```
+
+## SecuAI 最小接入
+
+本项目已在仓库代码层接入 SecuAI 检查链路，不涉及 Nginx、远程虚拟机网络或页面视觉设计。接入点位于 `middleware.ts` 和 `src/lib/secuai.ts`。
+
+### 环境变量
+
+```env
+SECUAI_ENABLED="true"
+SECUAI_PLATFORM_URL="https://secuai.example.com"
+SECUAI_SITE_ID="真实 siteId"
+SECUAI_SITE_INGESTION_KEY="真实 ingestion key"
+SECUAI_FAIL_OPEN="true"
+SECUAI_TIMEOUT_MS="1500"
+SECUAI_CHECK_PATH="/api/v1/protection/check"
+```
+
+- `SECUAI_ENABLED`：是否启用 SecuAI 检查；`.env.example` 默认关闭，避免占位值误连平台。
+- `SECUAI_PLATFORM_URL`：SecuAI API 地址，不要硬编码 IP 到代码里。
+- `SECUAI_SITE_ID`：平台侧站点 ID。
+- `SECUAI_SITE_INGESTION_KEY`：站点 ingestion key，会以 `x-site-ingestion-key` 请求头传给平台。
+- `SECUAI_FAIL_OPEN`：默认 `true`。平台不可用、超时、非 2xx 或返回异常时放行请求，避免阻断演示。
+- `SECUAI_TIMEOUT_MS`：调用平台的超时时间。
+- `SECUAI_CHECK_PATH`：平台检查接口路径，默认 `/api/v1/protection/check`。
+
+### 本地验证
+
+未配置或关闭 SecuAI 时，页面请求会继续放行。若配置了真实平台信息，页面请求会调用 SecuAI；平台返回 `block` 时站点返回 `403 REQUEST_BLOCKED`，平台不可用时按 `SECUAI_FAIL_OPEN=true` 放行并在响应头中带上 `x-secuai-fail-open`。
+
+推荐验证命令：
+
+```bash
+npm run test -- tests/secuai.test.ts
+npm run typecheck
+npm run build
+npm run smoke
+```
